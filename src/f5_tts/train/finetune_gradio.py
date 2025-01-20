@@ -335,6 +335,62 @@ def terminate_process(pid):
     else:
         terminate_process_tree(pid)
 
+# ---- Watchdog ----
+
+MEMORY_THRESHOLD = 15 * 1024  # 15GB in MB
+CHECK_INTERVAL = 1            # Check memory every 1 second
+memory_check_thread = None    # Global reference to the memory monitoring thread
+initial_step = True
+stop_signal = False
+project_path = None
+
+def wait_for_saving_to_complete(check_interval=1):
+    global project_path
+    print(f"Checking the model saving...", end='')
+    saving_model_path = os.path.join(project_path, "saving_model")    
+    while os.path.exists(saving_model_path):
+        print(f"Saving in progress. Waiting for {check_interval} seconds...")
+        time.sleep(check_interval)
+        print('.', end='')
+    print('done')
+
+def monitor_memory_and_restart(cmd):
+    global stop_signal, initial_step, project_path
+    while not stop_signal:
+        memory_info = psutil.virtual_memory()
+        available_memory = memory_info.free / (1024 ** 2)  # Convert bytes to MB
+        # print(f"Available memory: {available_memory:.2f} MB", available_memory < MEMORY_THRESHOLD)
+
+        if initial_step:
+            training_process = subprocess.Popen(cmd, shell=True)
+            initial_step = False
+        if available_memory < MEMORY_THRESHOLD:
+            print(f"Low memory detected: {available_memory:.2f} MB. Restarting training...")
+            wait_for_saving_to_complete()
+            if training_process is not None:
+                terminate_process(training_process.pid)  # Stop the current training
+                training_process = None
+                torch.cuda.empty_cache()
+                time.sleep(5)
+
+                # Restart the training process
+                training_process = subprocess.Popen(cmd, shell=True)
+                print("Training process restarted.")
+        time.sleep(CHECK_INTERVAL)
+    print("Memory monitoring thread exiting...")
+
+
+def start_memory_thread(cmd):
+    global memory_check_thread, stop_signal
+    if memory_check_thread and memory_check_thread.is_alive():
+        print("Stopping existing memory monitoring thread...")
+        memory_check_thread.join()
+    memory_check_thread = threading.Thread(target=monitor_memory_and_restart, args=(cmd,), daemon=True)
+    memory_check_thread.start()
+    print("New memory monitoring thread started.")
+
+# ---- Watchdog ----
+
 
 def start_training(
     dataset_name="",
@@ -467,8 +523,11 @@ def start_training(
     try:
         if not stream:
             # Start the training process
-            training_process = subprocess.Popen(cmd, shell=True)
-
+            # training_process = subprocess.Popen(cmd, shell=True)
+            
+            # Start the training process with Watchdog
+            start_memory_thread(cmd)
+            
             time.sleep(5)
             yield "train start", gr.update(interactive=False), gr.update(interactive=True)
 
@@ -1572,7 +1631,7 @@ If you encounter a memory error, try reducing the batch size per GPU to a smalle
                 cd_logger.value = settings["logger"]
                 ch_8bit_adam.value = settings["bnb_optimizer"]
 
-            ch_stream = gr.Checkbox(label="Stream Output Experiment", value=True)
+            ch_stream = gr.Checkbox(label="Stream Output Experiment", value=False)
             txt_info_train = gr.Text(label="Info", value="")
 
             list_audios, select_audio = get_audio_project(projects_selelect, False)
