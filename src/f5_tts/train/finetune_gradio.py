@@ -1,37 +1,36 @@
-import threading
-import queue
-import re
-
 import gc
 import json
 import os
 import platform
-import psutil
+import queue
 import random
-import signal
+import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from glob import glob
+from importlib.resources import files
 
 import click
 import gradio as gr
 import librosa
 import numpy as np
+import psutil
 import torch
 import torchaudio
-from datasets import Dataset as Dataset_
+from cached_path import cached_path
 from datasets.arrow_writer import ArrowWriter
+from f5_tts.api import F5TTS
+from f5_tts.infer.utils_infer import transcribe
+from f5_tts.model.utils import convert_char_to_pinyin
 from safetensors.torch import save_file
 from scipy.io import wavfile
-from cached_path import cached_path
-from f5_tts.api import F5TTS
-from f5_tts.model.utils import convert_char_to_pinyin
-from f5_tts.infer.utils_infer import transcribe
-from importlib.resources import files
 
+from datasets import Dataset as Dataset_
 
 training_process = None
 system = platform.system()
@@ -40,7 +39,6 @@ tts_api = None
 last_checkpoint = ""
 last_device = ""
 last_ema = None
-
 
 path_data = str(files("f5_tts").joinpath("../../data"))
 path_project_ckpts = str(files("f5_tts").joinpath("../../ckpts"))
@@ -59,26 +57,26 @@ device = (
 
 # Save settings from a JSON file
 def save_settings(
-    project_name,
-    exp_name,
-    learning_rate,
-    batch_size_per_gpu,
-    batch_size_type,
-    max_samples,
-    grad_accumulation_steps,
-    max_grad_norm,
-    epochs,
-    num_warmup_updates,
-    save_per_updates,
-    keep_last_n_checkpoints,
-    last_per_updates,
-    finetune,
-    file_checkpoint_train,
-    tokenizer_type,
-    tokenizer_file,
-    mixed_precision,
-    logger,
-    ch_8bit_adam,
+        project_name,
+        exp_name,
+        learning_rate,
+        batch_size_per_gpu,
+        batch_size_type,
+        max_samples,
+        grad_accumulation_steps,
+        max_grad_norm,
+        epochs,
+        num_warmup_updates,
+        save_per_updates,
+        keep_last_n_checkpoints,
+        last_per_updates,
+        finetune,
+        file_checkpoint_train,
+        tokenizer_type,
+        tokenizer_file,
+        mixed_precision,
+        logger,
+        ch_8bit_adam,
 ):
     path_project = os.path.join(path_project_ckpts, project_name)
     os.makedirs(path_project, exist_ok=True)
@@ -182,10 +180,10 @@ def clear_text(text):
 
 
 def get_rms(
-    y,
-    frame_length=2048,
-    hop_length=512,
-    pad_mode="constant",
+        y,
+        frame_length=2048,
+        hop_length=512,
+        pad_mode="constant",
 ):  # https://github.com/RVC-Boss/GPT-SoVITS/blob/main/tools/slicer2.py
     padding = (int(frame_length // 2), int(frame_length // 2))
     y = np.pad(y, padding, mode=pad_mode)
@@ -216,13 +214,13 @@ def get_rms(
 
 class Slicer:  # https://github.com/RVC-Boss/GPT-SoVITS/blob/main/tools/slicer2.py
     def __init__(
-        self,
-        sr: int,
-        threshold: float = -40.0,
-        min_length: int = 2000,
-        min_interval: int = 300,
-        hop_size: int = 20,
-        max_sil_kept: int = 2000,
+            self,
+            sr: int,
+            threshold: float = -40.0,
+            min_length: int = 2000,
+            min_interval: int = 300,
+            hop_size: int = 20,
+            max_sil_kept: int = 2000,
     ):
         if not min_length >= min_interval >= hop_size:
             raise ValueError("The following condition must be satisfied: min_length >= min_interval >= hop_size")
@@ -238,9 +236,9 @@ class Slicer:  # https://github.com/RVC-Boss/GPT-SoVITS/blob/main/tools/slicer2.
 
     def _apply_slice(self, waveform, begin, end):
         if len(waveform.shape) > 1:
-            return waveform[:, begin * self.hop_size : min(waveform.shape[1], end * self.hop_size)]
+            return waveform[:, begin * self.hop_size: min(waveform.shape[1], end * self.hop_size)]
         else:
-            return waveform[begin * self.hop_size : min(waveform.shape[0], end * self.hop_size)]
+            return waveform[begin * self.hop_size: min(waveform.shape[0], end * self.hop_size)]
 
     # @timeit
     def slice(self, waveform):
@@ -272,17 +270,17 @@ class Slicer:  # https://github.com/RVC-Boss/GPT-SoVITS/blob/main/tools/slicer2.
                 continue
             # Need slicing. Record the range of silent frames to be removed.
             if i - silence_start <= self.max_sil_kept:
-                pos = rms_list[silence_start : i + 1].argmin() + silence_start
+                pos = rms_list[silence_start: i + 1].argmin() + silence_start
                 if silence_start == 0:
                     sil_tags.append((0, pos))
                 else:
                     sil_tags.append((pos, pos))
                 clip_start = pos
             elif i - silence_start <= self.max_sil_kept * 2:
-                pos = rms_list[i - self.max_sil_kept : silence_start + self.max_sil_kept + 1].argmin()
+                pos = rms_list[i - self.max_sil_kept: silence_start + self.max_sil_kept + 1].argmin()
                 pos += i - self.max_sil_kept
-                pos_l = rms_list[silence_start : silence_start + self.max_sil_kept + 1].argmin() + silence_start
-                pos_r = rms_list[i - self.max_sil_kept : i + 1].argmin() + i - self.max_sil_kept
+                pos_l = rms_list[silence_start: silence_start + self.max_sil_kept + 1].argmin() + silence_start
+                pos_r = rms_list[i - self.max_sil_kept: i + 1].argmin() + i - self.max_sil_kept
                 if silence_start == 0:
                     sil_tags.append((0, pos_r))
                     clip_start = pos_r
@@ -290,8 +288,8 @@ class Slicer:  # https://github.com/RVC-Boss/GPT-SoVITS/blob/main/tools/slicer2.
                     sil_tags.append((min(pos_l, pos), max(pos_r, pos)))
                     clip_start = max(pos_r, pos)
             else:
-                pos_l = rms_list[silence_start : silence_start + self.max_sil_kept + 1].argmin() + silence_start
-                pos_r = rms_list[i - self.max_sil_kept : i + 1].argmin() + i - self.max_sil_kept
+                pos_l = rms_list[silence_start: silence_start + self.max_sil_kept + 1].argmin() + silence_start
+                pos_r = rms_list[i - self.max_sil_kept: i + 1].argmin() + i - self.max_sil_kept
                 if silence_start == 0:
                     sil_tags.append((0, pos_r))
                 else:
@@ -302,7 +300,7 @@ class Slicer:  # https://github.com/RVC-Boss/GPT-SoVITS/blob/main/tools/slicer2.
         total_frames = rms_list.shape[0]
         if silence_start is not None and total_frames - silence_start >= self.min_interval:
             silence_end = min(total_frames, silence_start + self.max_sil_kept)
-            pos = rms_list[silence_start : silence_end + 1].argmin() + silence_start
+            pos = rms_list[silence_start: silence_end + 1].argmin() + silence_start
             sil_tags.append((pos, total_frames + 1))
         # Apply and return slices.
         ####音频+起始时间+终止时间
@@ -359,24 +357,27 @@ def terminate_process(pid):
     else:
         terminate_process_tree(pid)
 
+
 # ---- Watchdog ----
 
 MEMORY_THRESHOLD = 15 * 1024  # 15GB in MB
-CHECK_INTERVAL = 1            # Check memory every 1 second
-memory_check_thread = None    # Global reference to the memory monitoring thread
+CHECK_INTERVAL = 1  # Check memory every 1 second
+memory_check_thread = None  # Global reference to the memory monitoring thread
 initial_step = True
 stop_signal = False
 project_path = None
 
+
 def wait_for_saving_to_complete(check_interval=1):
     global project_path
     print(f"Checking the model saving...", end='')
-    saving_model_path = os.path.join(project_path, "saving_model")    
+    saving_model_path = os.path.join(project_path, "saving_model")
     while os.path.exists(saving_model_path):
         print(f"Saving in progress. Waiting for {check_interval} seconds...")
         time.sleep(check_interval)
         print('.', end='')
     print('done')
+
 
 def monitor_memory_and_restart(cmd):
     global stop_signal, initial_step, project_path
@@ -413,31 +414,32 @@ def start_memory_thread(cmd):
     memory_check_thread.start()
     print("New memory monitoring thread started.")
 
+
 # ---- Watchdog ----
 
 
 def start_training(
-    dataset_name="",
-    exp_name="F5TTS_Base",
-    learning_rate=1e-4,
-    batch_size_per_gpu=400,
-    batch_size_type="frame",
-    max_samples=64,
-    grad_accumulation_steps=1,
-    max_grad_norm=1.0,
-    epochs=11,
-    num_warmup_updates=200,
-    save_per_updates=400,
-    keep_last_n_checkpoints=-1,
-    last_per_updates=800,
-    finetune=True,
-    file_checkpoint_train="",
-    tokenizer_type="pinyin",
-    tokenizer_file="",
-    mixed_precision="fp16",
-    stream=False,
-    logger="wandb",
-    ch_8bit_adam=False,
+        dataset_name="",
+        exp_name="F5TTS_Base",
+        learning_rate=1e-4,
+        batch_size_per_gpu=400,
+        batch_size_type="frame",
+        max_samples=64,
+        grad_accumulation_steps=1,
+        max_grad_norm=1.0,
+        epochs=11,
+        num_warmup_updates=200,
+        save_per_updates=400,
+        keep_last_n_checkpoints=-1,
+        last_per_updates=800,
+        finetune=True,
+        file_checkpoint_train="",
+        tokenizer_type="pinyin",
+        tokenizer_file="",
+        mixed_precision="fp16",
+        stream=False,
+        logger="wandb",
+        ch_8bit_adam=False,
 ):
     global training_process, tts_api, stop_signal
 
@@ -548,10 +550,10 @@ def start_training(
         if not stream:
             # Start the training process
             # training_process = subprocess.Popen(cmd, shell=True)
-            
+
             # Start the training process with Watchdog
             start_memory_thread(cmd)
-            
+
             time.sleep(5)
             yield "train start", gr.update(interactive=False), gr.update(interactive=True)
 
@@ -784,9 +786,9 @@ def format_seconds_to_hms(seconds):
 
 
 def get_correct_audio_path(
-    audio_input,
-    base_path="wavs",
-    supported_formats=("wav", "mp3", "aac", "flac", "m4a", "alac", "ogg", "aiff", "wma", "amr"),
+        audio_input,
+        base_path="wavs",
+        supported_formats=("wav", "mp3", "aac", "flac", "m4a", "alac", "ogg", "aiff", "wma", "amr"),
 ):
     file_audio = None
 
@@ -929,14 +931,14 @@ def check_user(value):
 
 
 def calculate_train(
-    name_project,
-    batch_size_type,
-    max_samples,
-    learning_rate,
-    num_warmup_updates,
-    save_per_updates,
-    last_per_updates,
-    finetune,
+        name_project,
+        batch_size_type,
+        max_samples,
+        learning_rate,
+        num_warmup_updates,
+        save_per_updates,
+        last_per_updates,
+        finetune,
 ):
     path_project = os.path.join(path_data, name_project)
     file_duraction = os.path.join(path_project, "duration.json")
@@ -970,18 +972,18 @@ def calculate_train(
         total_memory = 0
         for i in range(gpu_count):
             gpu_properties = torch.cuda.get_device_properties(i)
-            total_memory += gpu_properties.total_memory / (1024**3)  # in GB
+            total_memory += gpu_properties.total_memory / (1024 ** 3)  # in GB
 
     elif torch.xpu.is_available():
         gpu_count = torch.xpu.device_count()
         total_memory = 0
         for i in range(gpu_count):
             gpu_properties = torch.xpu.get_device_properties(i)
-            total_memory += gpu_properties.total_memory / (1024**3)
+            total_memory += gpu_properties.total_memory / (1024 ** 3)
 
     elif torch.backends.mps.is_available():
         gpu_count = 1
-        total_memory = psutil.virtual_memory().available / (1024**3)
+        total_memory = psutil.virtual_memory().available / (1024 ** 3)
 
     if batch_size_type == "frame":
         batch = int(total_memory * 0.5)
@@ -1265,7 +1267,8 @@ def get_random_sample_infer(project_name):
 
 
 def infer(
-    project, file_checkpoint, exp_name, ref_text, ref_audio, gen_text, nfe_step, use_ema, speed, seed, remove_silence
+        project, file_checkpoint, exp_name, ref_text, ref_audio, gen_text, nfe_step, use_ema, speed, seed,
+        remove_silence
 ):
     global last_checkpoint, last_device, tts_api, last_ema
 
@@ -1376,9 +1379,9 @@ def get_gpu_stats():
         for i in range(gpu_count):
             gpu_name = torch.cuda.get_device_name(i)
             gpu_properties = torch.cuda.get_device_properties(i)
-            total_memory = gpu_properties.total_memory / (1024**3)  # in GB
-            allocated_memory = torch.cuda.memory_allocated(i) / (1024**2)  # in MB
-            reserved_memory = torch.cuda.memory_reserved(i) / (1024**2)  # in MB
+            total_memory = gpu_properties.total_memory / (1024 ** 3)  # in GB
+            allocated_memory = torch.cuda.memory_allocated(i) / (1024 ** 2)  # in MB
+            reserved_memory = torch.cuda.memory_reserved(i) / (1024 ** 2)  # in MB
 
             gpu_stats += (
                 f"GPU {i} Name: {gpu_name}\n"
@@ -1391,9 +1394,9 @@ def get_gpu_stats():
         for i in range(gpu_count):
             gpu_name = torch.xpu.get_device_name(i)
             gpu_properties = torch.xpu.get_device_properties(i)
-            total_memory = gpu_properties.total_memory / (1024**3)  # in GB
-            allocated_memory = torch.xpu.memory_allocated(i) / (1024**2)  # in MB
-            reserved_memory = torch.xpu.memory_reserved(i) / (1024**2)  # in MB
+            total_memory = gpu_properties.total_memory / (1024 ** 3)  # in GB
+            allocated_memory = torch.xpu.memory_allocated(i) / (1024 ** 2)  # in MB
+            reserved_memory = torch.xpu.memory_reserved(i) / (1024 ** 2)  # in MB
 
             gpu_stats += (
                 f"GPU {i} Name: {gpu_name}\n"
@@ -1405,7 +1408,7 @@ def get_gpu_stats():
         gpu_count = 1
         gpu_stats += "MPS GPU\n"
         total_memory = psutil.virtual_memory().total / (
-            1024**3
+                1024 ** 3
         )  # Total system memory (MPS doesn't have its own memory)
         allocated_memory = 0
         reserved_memory = 0
@@ -1425,8 +1428,8 @@ def get_gpu_stats():
 def get_cpu_stats():
     cpu_usage = psutil.cpu_percent(interval=1)
     memory_info = psutil.virtual_memory()
-    memory_used = memory_info.used / (1024**2)
-    memory_total = memory_info.total / (1024**2)
+    memory_used = memory_info.used / (1024 ** 2)
+    memory_total = memory_info.total / (1024 ** 2)
     memory_percent = memory_info.percent
 
     pid = os.getpid()
@@ -1463,16 +1466,10 @@ def get_audio_select(file_sample):
 with gr.Blocks() as app:
     gr.Markdown(
         """
-# E2/F5 TTS Automatic Finetune
+# F5 TTS Automatic Finetune and Inference
 
 This is a local web UI for F5 TTS with advanced batch processing support. This app supports the following TTS models:
 
-* [F5-TTS](https://arxiv.org/abs/2410.06885) (A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching)
-* [E2 TTS](https://arxiv.org/abs/2406.18009) (Embarrassingly Easy Fully Non-Autoregressive Zero-Shot TTS)
-
-The checkpoints support English and Chinese.
-
-For tutorial and updates check here (https://github.com/SWivid/F5-TTS/discussions/143)
 """
     )
 
@@ -1801,6 +1798,7 @@ If you encounter a memory error, try reducing the batch size per GPU to a smalle
                 check_finetune, inputs=[ch_finetune], outputs=[file_checkpoint_train, tokenizer_file, tokenizer_type]
             )
 
+
             def setup_load_settings():
                 output_components = [
                     exp_name,
@@ -1823,6 +1821,7 @@ If you encounter a memory error, try reducing the batch size per GPU to a smalle
                 ]
 
                 return output_components
+
 
             outputs = setup_load_settings()
 
@@ -1914,14 +1913,18 @@ Reduce the model size from 5GB to 1.3GB. The new checkpoint can be used for infe
         with gr.TabItem("System Info"):
             output_box = gr.Textbox(label="GPU and CPU Information", lines=20)
 
+
             def update_stats():
                 return get_combined_stats()
+
 
             update_button = gr.Button("Update Stats")
             update_button.click(fn=update_stats, outputs=output_box)
 
+
             def auto_update():
                 yield gr.update(value=update_stats())
+
 
             gr.update(fn=auto_update, inputs=[], outputs=output_box)
 
@@ -1937,10 +1940,21 @@ Reduce the model size from 5GB to 1.3GB. The new checkpoint can be used for infe
     help="Share the app via Gradio share link",
 )
 @click.option("--api", "-a", default=True, is_flag=True, help="Allow API access")
-def main(port, host, share, api):
+@click.option(
+    "--root_path",
+    "-r",
+    default=None,
+    type=str,
+    help='The root path (or "mount point") of the application, if it\'s not served from the root ("/") of the domain. Often used when the application is behind a reverse proxy that forwards requests to the application, e.g. set "/myapp" or full URL for application served at "https://example.com/myapp".',
+)
+def main(port, host, share, api, root_path):
     global app
-    print("Starting app...")
-    app.queue(api_open=api).launch(server_name=host, server_port=port, share=share, show_api=api)
+    print(f"""Starting app... with
+    host: {host}:{port}
+    allow_api: {api}
+    root_path: {root_path}
+    """)
+    app.queue(api_open=api).launch(server_name=host, server_port=port, share=share, show_api=api, root_path=root_path)
 
 
 if __name__ == "__main__":
