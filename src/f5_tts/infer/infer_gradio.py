@@ -55,6 +55,7 @@ cwd = os.path.abspath(__file__).split('/')
 project_root = '/'.join(cwd[:-4])
 CKPTS_DIR = os.path.join(project_root, "ckpts")
 DATA_DIR = os.path.join(project_root, "data")
+DEMO_DIR = os.path.join(project_root, "demo")
 
 vocoder = load_vocoder()
 
@@ -217,8 +218,39 @@ with gr.Blocks() as app_credits:
 * [RootingInLoad](https://github.com/RootingInLoad) for initial chunk generation and podcast app exploration
 * [jpgallegoar](https://github.com/jpgallegoar) for multiple speech-type generation & voice chat
 """)
+
+
+def get_demo_files():
+    """Fetches all available demo audio and transcript files."""
+    demo_files = sorted(
+        [f for f in os.listdir(DEMO_DIR) if f.endswith(".wav")]
+    )
+    return demo_files
+
+
+# Function to load selected demo
+def load_demo(selected_demo):
+    """Fetches the selected audio file and its associated transcript."""
+    audio_path = os.path.join(DEMO_DIR, selected_demo)
+    transcript_path = audio_path.replace(".wav", ".txt")  # Assuming text file follows same naming
+    text_content = open(transcript_path, "r", encoding="utf-8").read() if os.path.exists(transcript_path) else ""
+    return gr.update(value=audio_path), gr.update(value=text_content)
+
+
+demo_files = get_demo_files()
+
 with gr.Blocks() as app_tts:
+    default_audio_path = os.path.join(DEMO_DIR, "demo-1.wav")
+    default_text = open(os.path.join(DEMO_DIR, "demo-1.txt"), "r", encoding="utf-8").read()
+
     gr.Markdown("# Batched TTS")
+    with gr.Row():
+        demo_selector = gr.Dropdown(
+            choices=demo_files,
+            label="Select a Demo",
+            value=demo_files[0] if demo_files else None
+        )
+
     ref_audio_input = gr.Audio(label="Reference Audio", type="filepath")
     gen_text_input = gr.Textbox(label="Text to Generate", lines=10)
     generate_btn = gr.Button("Synthesize", variant="primary")
@@ -260,6 +292,8 @@ with gr.Blocks() as app_tts:
 
     audio_output = gr.Audio(label="Synthesized Audio")
     spectrogram_output = gr.Image(label="Spectrogram")
+
+    demo_selector.change(load_demo, inputs=[demo_selector], outputs=[ref_audio_input, gen_text_input])
 
 
     @gpu_decorator
