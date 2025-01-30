@@ -225,7 +225,7 @@ def get_demo_files():
     demo_files = sorted(
         [f for f in os.listdir(DEMO_DIR) if f.endswith(".wav")]
     )
-    return demo_files
+    return ["Select a Demo"] + demo_files
 
 
 # Function to load selected demo
