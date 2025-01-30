@@ -2,10 +2,12 @@
 # Above allows ruff to ignore E402: module level import not at top of file
 
 import json
+import os
 import re
 import tempfile
 from collections import OrderedDict
 from importlib.resources import files
+from pathlib import Path
 
 import click
 import gradio as gr
@@ -49,7 +51,10 @@ DEFAULT_TTS_MODEL_CFG = [
     json.dumps(dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)),
 ]
 
-# load models
+cwd = os.path.abspath(__file__).split('/')
+project_root = '/'.join(cwd[:-4])
+CKPTS_DIR = os.path.join(project_root, "ckpts")
+DATA_DIR = os.path.join(project_root, "data")
 
 vocoder = load_vocoder()
 
@@ -73,6 +78,36 @@ def load_custom(ckpt_path: str, vocab_path="", model_cfg=None):
     if model_cfg is None:
         model_cfg = dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)
     return load_model(DiT, model_cfg, ckpt_path, vocab_file=vocab_path)
+
+
+def get_available_models():
+    """Efficiently list all model checkpoint files (.pt, .safetensors) from CKPTS_DIR."""
+    return (sorted(str(f) for f in Path(CKPTS_DIR).rglob("*.pt")) +
+            sorted(str(f) for f in Path(CKPTS_DIR).rglob("*.safetensors")) +
+            ["hf://SWivid/F5-TTS/F5TTS_Base/model_1200000.safetensors"])
+
+
+def get_vocab_files():
+    """Efficiently list all vocab files from DATA_DIR."""
+    return sorted(str(f) for f in Path(DATA_DIR).rglob("vocab.txt")) + ["hf://SWivid/F5-TTS/F5TTS_Base/vocab.txt"]
+
+
+def get_model_configs():
+    """Dynamically generate model configurations"""
+    config_options = [
+        json.dumps(dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)),
+        json.dumps(dict(dim=768, depth=18, heads=12, ff_mult=2, text_dim=512, conv_layers=4))
+    ]
+    return config_options
+
+
+def update_dropdowns():
+    """Fetch latest models, vocab, and config dynamically"""
+    return (
+        gr.Dropdown.update(choices=get_available_models()),
+        gr.Dropdown.update(choices=get_vocab_files()),
+        gr.Dropdown.update(choices=get_model_configs())
+    )
 
 
 F5TTS_ema_model = load_f5tts()
@@ -824,24 +859,21 @@ If you're having issues, try converting your reference audio to WAV or MP3, clip
                 choices=[DEFAULT_TTS_MODEL, "E2-TTS"], label="Choose TTS Model", value=DEFAULT_TTS_MODEL
             )
         custom_ckpt_path = gr.Dropdown(
-            choices=[DEFAULT_TTS_MODEL_CFG[0]],
+            choices=get_available_models(),
             value=load_last_used_custom()[0],
             allow_custom_value=True,
             label="Model: local_path | hf://user_id/repo_id/model_ckpt",
             visible=False,
         )
         custom_vocab_path = gr.Dropdown(
-            choices=[DEFAULT_TTS_MODEL_CFG[1]],
+            choices=get_vocab_files(),
             value=load_last_used_custom()[1],
             allow_custom_value=True,
             label="Vocab: local_path | hf://user_id/repo_id/vocab_file",
             visible=False,
         )
         custom_model_cfg = gr.Dropdown(
-            choices=[
-                DEFAULT_TTS_MODEL_CFG[2],
-                json.dumps(dict(dim=768, depth=18, heads=12, ff_mult=2, text_dim=512, conv_layers=4)),
-            ],
+            choices=get_model_configs(),
             value=load_last_used_custom()[2],
             allow_custom_value=True,
             label="Config: in a dictionary form",
