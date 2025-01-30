@@ -232,6 +232,8 @@ def get_demo_files():
 def load_demo(selected_demo):
     """Fetches the selected audio file and its associated transcript."""
     audio_path = os.path.join(DEMO_DIR, selected_demo)
+    if not os.path.exists(audio_path):
+        return gr.update(value=None), gr.update(value="")
     transcript_path = audio_path.replace(".wav", ".txt")  # Assuming text file follows same naming
     text_content = open(transcript_path, "r", encoding="utf-8").read() if os.path.exists(transcript_path) else ""
     return gr.update(value=audio_path), gr.update(value=text_content)
