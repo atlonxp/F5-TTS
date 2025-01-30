@@ -249,7 +249,7 @@ with gr.Blocks() as app_tts:
     with gr.Row():
         demo_selector = gr.Dropdown(
             choices=demo_files,
-            label="Select a Demo",
+            label="Select a demo reference audio and transcript",
             value=demo_files[0] if demo_files else None
         )
 
@@ -295,7 +295,7 @@ with gr.Blocks() as app_tts:
     audio_output = gr.Audio(label="Synthesized Audio")
     spectrogram_output = gr.Image(label="Spectrogram")
 
-    demo_selector.change(load_demo, inputs=[demo_selector], outputs=[ref_audio_input, gen_text_input])
+    demo_selector.change(load_demo, inputs=[demo_selector], outputs=[ref_audio_input, ref_audio_input])
 
 
     @gpu_decorator
