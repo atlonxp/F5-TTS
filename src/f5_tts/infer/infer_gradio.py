@@ -295,7 +295,7 @@ with gr.Blocks() as app_tts:
     audio_output = gr.Audio(label="Synthesized Audio")
     spectrogram_output = gr.Image(label="Spectrogram")
 
-    demo_selector.change(load_demo, inputs=[demo_selector], outputs=[ref_audio_input, ref_audio_input])
+    demo_selector.change(load_demo, inputs=[demo_selector], outputs=[ref_audio_input, ref_text_input])
 
 
     @gpu_decorator
