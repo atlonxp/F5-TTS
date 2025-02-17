@@ -14,6 +14,13 @@ import torchaudio
 from cached_path import cached_path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
+
+from voicefixer import VoiceFixer
+voicefixer = VoiceFixer()
+
 try:
     import spaces
 
@@ -106,6 +113,32 @@ def update_dropdowns():
         gr.Dropdown.update(choices=get_vocab_files()),
         gr.Dropdown.update(choices=get_model_configs())
     )
+
+
+def generate_spectrogram(audio_file, spectrogram_path="spectrogram.png"):
+    # Load the audio file
+    y, sr = librosa.load(audio_file, sr=None)  # Keep original sample rate
+
+    # Compute Mel-Spectrogram
+    n_fft = 1024  # Number of FFT bins
+    hop_length = 256  # Step size
+    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=80, n_fft=n_fft, hop_length=hop_length)
+    S_db = librosa.amplitude_to_db(S, ref=np.max)  # Convert to decibel scale
+
+    # Create a figure and save it as an image
+    fig, ax = plt.subplots(figsize=(10, 4))
+    img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, cmap="viridis", ax=ax)
+    ax.set_title("Mel-Spectrogram")
+    ax.set_xlabel("Time Frames")
+    ax.set_ylabel("Mel Frequency Bins")
+    fig.colorbar(img, format="%+2.0f dB")
+
+    # Save the plot as an image
+    image_path = spectrogram_path
+    plt.savefig(image_path, bbox_inches="tight", pad_inches=0)
+    plt.close(fig)  # Close figure to avoid memory leak
+
+    return image_path  # Return image path to Gradio
 
 
 F5TTS_ema_model = load_f5tts()
@@ -203,8 +236,18 @@ def infer(
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_spectrogram:
         spectrogram_path = tmp_spectrogram.name
         save_spectrogram(combined_spectrogram, spectrogram_path)
-
-    return (final_sample_rate, final_wave), spectrogram_path, ref_text
+    
+    # enhance audio
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+        sf.write(f.name, final_wave, final_sample_rate)
+        voicefixer.restore(input=f.name, output=f.name, cuda=True, mode=0)
+        enhanced_wave, enhanced_sample_rate = torchaudio.load(f.name)
+        # mel-spec from enhanced audio -- disabled as it cause slow processing
+        # with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_spectrogram:    
+        #     enhanced_spectrogram_path = generate_spectrogram(f.name, tmp_spectrogram.name)
+    enhanced_wave = enhanced_wave.squeeze().cpu().numpy()
+    
+    return (final_sample_rate, final_wave), spectrogram_path, ref_text, (enhanced_sample_rate, enhanced_wave)
 
 
 with gr.Blocks() as app_credits:
@@ -217,45 +260,57 @@ with gr.Blocks() as app_credits:
 """)
 
 
-def get_demo_files():
-    """Fetches all available demo audio and transcript files."""
-    demo_files = sorted(
-        [f for f in os.listdir(DEMO_DIR) if f.endswith(".wav")]
+def get_speakers():
+    speakers = sorted(
+        [f.replace(".wav", "").replace("_", " ") for f in os.listdir(DEMO_DIR) if f.endswith(".wav")]
     )
-    return ["Select a Demo"] + demo_files
+    return ["Select Speaker"] + speakers
+
+
+def update_demo_choices():
+    return gr.update(choices=get_speakers(), value="Select Speaker")
 
 
 # Function to load selected demo
-def load_demo(selected_demo):
+def load_speaker(selected_demo):
     """Fetches the selected audio file and its associated transcript."""
-    audio_path = os.path.join(DEMO_DIR, selected_demo)
+    if selected_demo == "Select Speaker":
+        return gr.update(value=None), gr.update(value="")
+
+    # Convert the selected name back to the filename format
+    filename = selected_demo.replace(" ", "_") + ".wav"
+    audio_path = os.path.join(DEMO_DIR, filename)
+
     if not os.path.exists(audio_path):
         return gr.update(value=None), gr.update(value="")
-    transcript_path = audio_path.replace(".wav", ".txt")  # Assuming text file follows same naming
+
+    transcript_path = audio_path.replace(".wav", ".txt")  # Assuming text file follows the same naming
     text_content = open(transcript_path, "r", encoding="utf-8").read() if os.path.exists(transcript_path) else ""
+
     return gr.update(value=audio_path), gr.update(value=text_content)
 
-
-demo_files = get_demo_files()
 
 with gr.Blocks() as app_tts:
     gr.Markdown("# Batched TTS")
     with gr.Row():
         demo_selector = gr.Dropdown(
-            choices=demo_files,
-            label="Select a demo reference audio and transcript",
-            value=demo_files[0] if demo_files else None
+            choices=get_speakers(),
+            label="Select a speaker reference audio and transcript",
+            value="Select Speaker"
         )
+        refresh_button = gr.Button("Refresh List")
+        refresh_button.click(update_demo_choices, outputs=demo_selector)
 
-    ref_audio_input = gr.Audio(label="Reference Audio", type="filepath")
-    gen_text_input = gr.Textbox(label="Text to Generate", lines=10)
-    generate_btn = gr.Button("Synthesize", variant="primary")
-    with gr.Accordion("Advanced Settings", open=False):
+    with gr.Row():
+        ref_audio_input = gr.Audio(label="Reference Audio", type="filepath")
         ref_text_input = gr.Textbox(
             label="Reference Text",
             info="Leave blank to automatically transcribe the reference audio. If you enter text it will override automatic transcription.",
-            lines=2,
+            lines=7,
         )
+    gen_text_input = gr.Textbox(label="Text to Generate", lines=5)
+    generate_btn = gr.Button("Synthesize", variant="primary")
+    with gr.Accordion("Advanced Settings", open=False):
         remove_silence = gr.Checkbox(
             label="Remove Silences",
             info="The model tends to produce silences, especially on longer audio. We can manually remove silences if needed. Note that this is an experimental feature and may produce strange results. This will also increase generation time.",
@@ -286,10 +341,12 @@ with gr.Blocks() as app_tts:
             info="Set the duration of the cross-fade between audio clips.",
         )
 
-    audio_output = gr.Audio(label="Synthesized Audio")
     spectrogram_output = gr.Image(label="Spectrogram")
+    with gr.Row():
+        audio_output = gr.Audio(label="Synthesized Audio")
+        audio_enhanced = gr.Audio(label="Enchanced Audio")
 
-    demo_selector.change(load_demo, inputs=[demo_selector], outputs=[ref_audio_input, ref_text_input])
+    demo_selector.change(load_speaker, inputs=[demo_selector], outputs=[ref_audio_input, ref_text_input])
 
 
     @gpu_decorator
@@ -302,7 +359,7 @@ with gr.Blocks() as app_tts:
             nfe_slider,
             speed_slider,
     ):
-        audio_out, spectrogram_path, ref_text_out = infer(
+        audio_out, spectrogram_path, ref_text_out, audio_enhanced_out = infer(
             ref_audio_input,
             ref_text_input,
             gen_text_input,
@@ -312,7 +369,8 @@ with gr.Blocks() as app_tts:
             nfe_step=nfe_slider,
             speed=speed_slider,
         )
-        return audio_out, spectrogram_path, ref_text_out
+
+        return audio_out, spectrogram_path, ref_text_out, audio_enhanced_out
 
 
     generate_btn.click(
@@ -326,7 +384,7 @@ with gr.Blocks() as app_tts:
             nfe_slider,
             speed_slider,
         ],
-        outputs=[audio_output, spectrogram_output, ref_text_input],
+        outputs=[audio_output, spectrogram_output, ref_text_input, audio_enhanced],
     )
 
 
