@@ -239,9 +239,6 @@ def load_demo(selected_demo):
 demo_files = get_demo_files()
 
 with gr.Blocks() as app_tts:
-    default_audio_path = os.path.join(DEMO_DIR, "demo-1.wav")
-    default_text = open(os.path.join(DEMO_DIR, "demo-1.txt"), "r", encoding="utf-8").read()
-
     gr.Markdown("# Batched TTS")
     with gr.Row():
         demo_selector = gr.Dropdown(
