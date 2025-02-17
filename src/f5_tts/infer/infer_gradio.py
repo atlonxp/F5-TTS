@@ -1,6 +1,3 @@
-# ruff: noqa: E402
-# Above allows ruff to ignore E402: module level import not at top of file
-
 import json
 import os
 import re
@@ -947,8 +944,8 @@ The checkpoints currently support English, Chinese, and Thai (experiments).
 
 
 @click.command()
-@click.option("--port", "-p", default=None, type=int, help="Port to run the app on")
-@click.option("--host", "-H", default=None, help="Host to run the app on")
+@click.option("--port", "-p", default=55556, type=int, help="Port to run the app on")
+@click.option("--host", "-H", default="0.0.0.0", help="Host to run the app on")
 @click.option(
     "--share",
     "-s",
@@ -960,26 +957,23 @@ The checkpoints currently support English, Chinese, and Thai (experiments).
 @click.option(
     "--root_path",
     "-r",
-    default=None,
+    default="/tts",
     type=str,
     help='The root path (or "mount point") of the application, if it\'s not served from the root ("/") of the domain. Often used when the application is behind a reverse proxy that forwards requests to the application, e.g. set "/myapp" or full URL for application served at "https://example.com/myapp".',
 )
-def main(port, host, share, api, root_path):
+def main(port=55556, host="0.0.0.0", share=False, api=True, root_path="/tts"):
     global app
-    print(f"""Starting app... with
+    print(f"""
+    Starting app... with
     host: {host}:{port}
     allow_api: {api}
     root_path: {root_path}
     """)
-    app.queue(api_open=api).launch(
-        server_name=host, server_port=port,
-        share=share, show_api=api,
-        root_path=root_path,
-    )
+    app.queue(api_open=api).launch(server_name=host, server_port=port, share=share, show_api=api, root_path=root_path)
 
 
 if __name__ == "__main__":
     if not USING_SPACES:
-        main()
+        main(args=["--port", "55556", "--host", "0.0.0.0"], standalone_mode=False)
     else:
         app.queue().launch()
