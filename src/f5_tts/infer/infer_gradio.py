@@ -1016,7 +1016,15 @@ The checkpoints currently support English, Chinese, and Thai (experiments).
     type=str,
     help='The root path (or "mount point") of the application, if it\'s not served from the root ("/") of the domain. Often used when the application is behind a reverse proxy that forwards requests to the application, e.g. set "/myapp" or full URL for application served at "https://example.com/myapp".',
 )
-def main(port=55556, host="0.0.0.0", share=False, api=True, root_path="/tts"):
+@click.option(
+    "--inbrowser",
+    "-i",
+    is_flag=True,
+    default=False,
+    help="Automatically launch the interface in the default web browser",
+)
+
+def main(port=55556, host="0.0.0.0", share=False, api=True, root_path="/tts", inbrowser=False):
     global app
     print(f"""
     Starting app... with
@@ -1024,8 +1032,14 @@ def main(port=55556, host="0.0.0.0", share=False, api=True, root_path="/tts"):
     allow_api: {api}
     root_path: {root_path}
     """)
-    app.queue(api_open=api).launch(server_name=host, server_port=port, share=share, show_api=api, root_path=root_path)
-
+    app.queue(api_open=api).launch(
+        server_name=host,
+        server_port=port,
+        share=share,
+        show_api=api,
+        root_path=root_path,
+        inbrowser=inbrowser
+    )
 
 if __name__ == "__main__":
     if not USING_SPACES:
