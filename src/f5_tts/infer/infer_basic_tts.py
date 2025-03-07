@@ -23,7 +23,7 @@ from f5_tts.infer.utils_infer import (
     infer_process,
     remove_silence_for_generated_wav,
     save_spectrogram, get_available_models, get_vocab_files, get_model_configs,
-    load_f5tts, load_custom
+    load_f5tts, load_custom, device
 )
 
 DEFAULT_TTS_MODEL = "F5-TTS"
@@ -114,7 +114,11 @@ def infer(
     # enhance audio
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
         sf.write(f.name, final_wave, final_sample_rate)
-        voicefixer.restore(input=f.name, output=f.name, cuda=True, mode=0)
+        voicefixer.restore(
+            input=f.name, output=f.name,
+            cuda=True if device == "cuda" else False,
+            mode=0
+        )
         enhanced_wave, enhanced_sample_rate = torchaudio.load(f.name)
         # mel-spec from enhanced audio -- disabled as it cause slow processing
         # with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_spectrogram:
@@ -349,7 +353,10 @@ def main(port=55556, host="127.0.0.1", share=False, api=True, root_path="/", inb
         share=share,
         show_api=api,
         root_path=root_path,
-        inbrowser=inbrowser
+        inbrowser=inbrowser,
+        allowed_paths=[
+            "/Users/atlonxp/workspaces/PyCharmProjects/F5-TTS/demo",
+        ]
     )
 
 
