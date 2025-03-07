@@ -8,18 +8,13 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"  # for MPS device compatibility
 sys.path.append(f"{os.path.dirname(os.path.abspath(__file__))}/../../third_party/BigVGAN/")
 
 import hashlib
-import re
-import tempfile
-from importlib.resources import files
 
 import matplotlib
 
 matplotlib.use("Agg")
 
 import matplotlib.pylab as plt
-import numpy as np
 import torch
-import torchaudio
 import tqdm
 from huggingface_hub import snapshot_download, hf_hub_download
 from pydub import AudioSegment, silence
@@ -32,19 +27,34 @@ from f5_tts.model.utils import (
     convert_char_to_pinyin,
 )
 
+import json
+import os
+import re
+import tempfile
+from importlib.resources import files
+from pathlib import Path
+
+import numpy as np
+import torchaudio
+from cached_path import cached_path
+
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
+
+from f5_tts.model import DiT, UNetT
+
 _ref_audio_cache = {}
 
-device = (
-    "cuda"
-    if torch.cuda.is_available()
-    else "xpu"
-    if torch.xpu.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()
-    else "cpu"
-)
-
-# -----------------------------------------
+try:
+    device = (
+        "cuda" if torch.cuda.is_available()
+        else "xpu" if torch.xpu.is_available()
+        else "mps" if torch.backends.mps.is_available()
+        else "cpu"
+    )
+except AttributeError:
+    device = "cpu"
 
 target_sample_rate = 24000
 n_mel_channels = 100
@@ -61,12 +71,13 @@ sway_sampling_coef = -1.0
 speed = 1.0
 fix_duration = None
 
-# -----------------------------------------
+cwd = os.path.abspath(__file__).split('/')
+project_root = '/'.join(cwd[:-4])
+CKPTS_DIR = os.path.join(project_root, "ckpts")
+DATA_DIR = os.path.join(project_root, "data")
 
 
 # chunk text into smaller pieces
-
-
 def chunk_text(text, max_chars=135):
     """
     Splits the input text into chunks, each with a maximum number of characters.
@@ -140,7 +151,6 @@ def load_vocoder(vocoder_name="vocos", is_local=False, local_path="", device=dev
 
 
 # load asr pipeline
-
 asr_pipe = None
 
 
@@ -149,8 +159,8 @@ def initialize_asr_pipeline(device: str = device, dtype=None):
         dtype = (
             torch.float16
             if "cuda" in device
-            and torch.cuda.get_device_properties(device).major >= 6
-            and not torch.cuda.get_device_name().endswith("[ZLUDA]")
+               and torch.cuda.get_device_properties(device).major >= 6
+               and not torch.cuda.get_device_name().endswith("[ZLUDA]")
             else torch.float32
         )
     global asr_pipe
@@ -163,8 +173,6 @@ def initialize_asr_pipeline(device: str = device, dtype=None):
 
 
 # transcribe
-
-
 def transcribe(ref_audio, language=None):
     global asr_pipe
     if asr_pipe is None:
@@ -179,15 +187,13 @@ def transcribe(ref_audio, language=None):
 
 
 # load model checkpoint for inference
-
-
 def load_checkpoint(model, ckpt_path, device: str, dtype=None, use_ema=True):
     if dtype is None:
         dtype = (
             torch.float16
             if "cuda" in device
-            and torch.cuda.get_device_properties(device).major >= 6
-            and not torch.cuda.get_device_name().endswith("[ZLUDA]")
+               and torch.cuda.get_device_properties(device).major >= 6
+               and not torch.cuda.get_device_name().endswith("[ZLUDA]")
             else torch.float32
         )
     model = model.to(dtype)
@@ -227,17 +233,15 @@ def load_checkpoint(model, ckpt_path, device: str, dtype=None, use_ema=True):
 
 
 # load model for inference
-
-
 def load_model(
-    model_cls,
-    model_cfg,
-    ckpt_path,
-    mel_spec_type=mel_spec_type,
-    vocab_file="",
-    ode_method=ode_method,
-    use_ema=True,
-    device=device,
+        model_cls,
+        model_cfg,
+        ckpt_path,
+        mel_spec_type=mel_spec_type,
+        vocab_file="",
+        ode_method=ode_method,
+        use_ema=True,
+        device=device,
 ):
     if vocab_file == "":
         vocab_file = str(files("f5_tts").joinpath("infer/examples/vocab.txt"))
@@ -287,8 +291,6 @@ def remove_silence_edges(audio, silence_threshold=-42):
 
 
 # preprocess reference audio and text
-
-
 def preprocess_ref_audio_text(ref_audio_orig, ref_text, clip_short=True, show_info=print, device=device):
     show_info("Converting audio...")
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
@@ -361,25 +363,23 @@ def preprocess_ref_audio_text(ref_audio_orig, ref_text, clip_short=True, show_in
 
 
 # infer process: chunk text -> infer batches [i.e. infer_batch_process()]
-
-
 def infer_process(
-    ref_audio,
-    ref_text,
-    gen_text,
-    model_obj,
-    vocoder,
-    mel_spec_type=mel_spec_type,
-    show_info=print,
-    progress=tqdm,
-    target_rms=target_rms,
-    cross_fade_duration=cross_fade_duration,
-    nfe_step=nfe_step,
-    cfg_strength=cfg_strength,
-    sway_sampling_coef=sway_sampling_coef,
-    speed=speed,
-    fix_duration=fix_duration,
-    device=device,
+        ref_audio,
+        ref_text,
+        gen_text,
+        model_obj,
+        vocoder,
+        mel_spec_type=mel_spec_type,
+        show_info=print,
+        progress=tqdm,
+        target_rms=target_rms,
+        cross_fade_duration=cross_fade_duration,
+        nfe_step=nfe_step,
+        cfg_strength=cfg_strength,
+        sway_sampling_coef=sway_sampling_coef,
+        speed=speed,
+        fix_duration=fix_duration,
+        device=device,
 ):
     # Split the input text into batches
     audio, sr = torchaudio.load(ref_audio)
@@ -412,26 +412,24 @@ def infer_process(
 
 
 # infer batches
-
-
 def infer_batch_process(
-    ref_audio,
-    ref_text,
-    gen_text_batches,
-    model_obj,
-    vocoder,
-    mel_spec_type="vocos",
-    progress=tqdm,
-    target_rms=0.1,
-    cross_fade_duration=0.15,
-    nfe_step=32,
-    cfg_strength=2.0,
-    sway_sampling_coef=-1,
-    speed=1,
-    fix_duration=None,
-    device=None,
-    streaming=False,
-    chunk_size=2048,
+        ref_audio,
+        ref_text,
+        gen_text_batches,
+        model_obj,
+        vocoder,
+        mel_spec_type="vocos",
+        progress=tqdm,
+        target_rms=0.1,
+        cross_fade_duration=0.15,
+        nfe_step=32,
+        cfg_strength=2.0,
+        sway_sampling_coef=-1,
+        speed=1,
+        fix_duration=None,
+        device=None,
+        streaming=False,
+        chunk_size=2048,
 ):
     audio, sr = ref_audio
     if audio.shape[0] > 1:
@@ -495,7 +493,7 @@ def infer_batch_process(
 
             if streaming:
                 for j in range(0, len(generated_wave), chunk_size):
-                    yield generated_wave[j : j + chunk_size], target_sample_rate
+                    yield generated_wave[j: j + chunk_size], target_sample_rate
             else:
                 yield generated_wave, generated_mel_spec[0].cpu().numpy()
 
@@ -561,8 +559,6 @@ def infer_batch_process(
 
 
 # remove silence from generated wav
-
-
 def remove_silence_for_generated_wav(filename):
     aseg = AudioSegment.from_file(filename)
     non_silent_segs = silence.split_on_silence(
@@ -576,11 +572,81 @@ def remove_silence_for_generated_wav(filename):
 
 
 # save spectrogram
-
-
 def save_spectrogram(spectrogram, path):
     plt.figure(figsize=(12, 4))
     plt.imshow(spectrogram, origin="lower", aspect="auto")
     plt.colorbar()
     plt.savefig(path)
     plt.close()
+
+
+def generate_spectrogram(audio_file, spectrogram_path="spectrogram.png"):
+    # Load the audio file
+    y, sr = librosa.load(audio_file, sr=None)  # Keep original sample rate
+
+    # Compute Mel-Spectrogram
+    n_fft = 1024  # Number of FFT bins
+    hop_length = 256  # Step size
+    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=80, n_fft=n_fft, hop_length=hop_length)
+    S_db = librosa.amplitude_to_db(S, ref=np.max)  # Convert to decibel scale
+
+    # Create a figure and save it as an image
+    fig, ax = plt.subplots(figsize=(10, 4))
+    img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, cmap="viridis", ax=ax)
+    ax.set_title("Mel-Spectrogram")
+    ax.set_xlabel("Time Frames")
+    ax.set_ylabel("Mel Frequency Bins")
+    fig.colorbar(img, format="%+2.0f dB")
+
+    # Save the plot as an image
+    image_path = spectrogram_path
+    plt.savefig(image_path, bbox_inches="tight", pad_inches=0)
+    plt.close(fig)  # Close figure to avoid memory leak
+
+    return image_path  # Return image path to Gradio
+
+
+# -------------------------------------
+# utility function from infer_gradio.py
+# -------------------------------------
+
+def load_f5tts(ckpt_path=str(cached_path("hf://SWivid/F5-TTS/F5TTS_Base/model_1200000.safetensors"))):
+    F5TTS_model_cfg = dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)
+    return load_model(DiT, F5TTS_model_cfg, ckpt_path)
+
+
+def load_e2tts(ckpt_path=str(cached_path("hf://SWivid/E2-TTS/E2TTS_Base/model_1200000.safetensors"))):
+    E2TTS_model_cfg = dict(dim=1024, depth=24, heads=16, ff_mult=4)
+    return load_model(UNetT, E2TTS_model_cfg, ckpt_path)
+
+
+def load_custom(ckpt_path: str, vocab_path="", model_cfg=None):
+    ckpt_path, vocab_path = ckpt_path.strip(), vocab_path.strip()
+    if ckpt_path.startswith("hf://"):
+        ckpt_path = str(cached_path(ckpt_path))
+    if vocab_path.startswith("hf://"):
+        vocab_path = str(cached_path(vocab_path))
+    if model_cfg is None:
+        model_cfg = dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)
+    return load_model(DiT, model_cfg, ckpt_path, vocab_file=vocab_path)
+
+
+def get_available_models():
+    """Efficiently list all model checkpoint files (.pt, .safetensors) from CKPTS_DIR."""
+    return (sorted(str(f) for f in Path(CKPTS_DIR).rglob("*.pt")) +
+            sorted(str(f) for f in Path(CKPTS_DIR).rglob("*.safetensors")) +
+            ["hf://SWivid/F5-TTS/F5TTS_Base/model_1200000.safetensors"])
+
+
+def get_vocab_files():
+    """Efficiently list all vocab files from DATA_DIR."""
+    return sorted(str(f) for f in Path(DATA_DIR).rglob("vocab.txt")) + ["hf://SWivid/F5-TTS/F5TTS_Base/vocab.txt"]
+
+
+def get_model_configs():
+    """Dynamically generate model configurations"""
+    config_options = [
+        json.dumps(dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)),
+        json.dumps(dict(dim=768, depth=18, heads=12, ff_mult=2, text_dim=512, conv_layers=4))
+    ]
+    return config_options
