@@ -3,7 +3,6 @@ import os
 
 from django.core.exceptions import ValidationError
 from django.db import models
-from f5_tts.infer.infer_gradio_api import set_custom_model
 
 MODEL_DEFAULT_CONFIG = json.dumps(
     {"dim": 1024, "depth": 22, "heads": 16, "ff_mult": 2, "text_dim": 512, "conv_layers": 4}
@@ -48,4 +47,5 @@ class TTSConfiguration(models.Model):
         if not self.pk and TTSConfiguration.objects.exists():
             raise ValidationError("There can be only one TTSConfiguration instance")
         super().save(*args, **kwargs)
+        from f5_tts.infer.infer_gradio_api import set_custom_model
         set_custom_model(self.checkpoint, self.vocab, self.config)

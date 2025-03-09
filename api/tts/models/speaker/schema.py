@@ -11,4 +11,7 @@ class SpeakerIn(BaseModel):
 class SpeakerOut(BaseModel):
     id: int
     name: str
+    gender: str
     reference_text: Optional[str] = None
+    reference_audio: Optional[str] = None
+    duration: Optional[float] = None

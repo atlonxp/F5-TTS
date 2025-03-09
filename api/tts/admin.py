@@ -85,10 +85,11 @@ class TTSConfigurationAdmin(ModelAdmin):
 
 @admin.register(Speaker)
 class SpeakerAdmin(ModelAdmin):
-    list_display = ['gender', 'name', 'reference_text', 'ref_audio_link', 'formatted_duration', 'is_default_speaker']
+    list_display = ['speaker_id', 'gender', 'name', 'reference_text', 'ref_audio_link', 'formatted_duration',
+                    'default']
     list_filter = ['gender']
     list_display_links = ['name']
-    list_editable = ['is_default_speaker']
+    list_editable = ['default']
     ordering = ('gender', 'name')
 
     def formatted_duration(self, obj):

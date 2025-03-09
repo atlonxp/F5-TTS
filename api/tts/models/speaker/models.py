@@ -1,26 +1,28 @@
-from django.db import models
-import soundfile as sf
 import os
 
+import soundfile as sf
+from django.db import models
 from filer.fields.file import FilerFileField
+
+GENDER_CHOICES = (
+    ('M', 'Male'),
+    ('F', 'Female'),
+    ('KM', 'Male (Kid)'),
+    ('KF', 'Female (Kid)'),
+)
 
 
 class Speaker(models.Model):
-    GENDER_CHOICES = (
-        ('M', 'Male'),
-        ('F', 'Female'),
-        ('KM', 'Male (Kid)'),
-        ('KF', 'Female (Kid)'),
-    )
     DEFAULT_GENDER = 'M'
     DEFAULT_LANGUAGE = 'th'
 
+    speaker_id = models.CharField(max_length=128, blank=True, null=True)
     name = models.CharField(max_length=100, unique=True)
     reference_text = models.TextField(blank=True)
     reference_audio = FilerFileField(related_name='reference_audio', blank=False, null=True, on_delete=models.SET_NULL)
     duration = models.FloatField(default=0.0)
 
-    is_default_speaker = models.BooleanField(default=False)
+    default = models.BooleanField(default=False)
     default_speed = models.FloatField(default=1.0)
 
     gender = models.CharField(max_length=3, choices=GENDER_CHOICES, default=DEFAULT_GENDER)
@@ -41,3 +43,35 @@ class Speaker(models.Model):
                 with sf.SoundFile(audio_path) as f:
                     self.duration = len(f) / f.samplerate
         super().save(*args, **kwargs)
+
+    @staticmethod
+    def get_default_speaker():
+        return Speaker.objects.filter(is_default_speaker=True).first()
+
+    @staticmethod
+    def rerun_speaker_duration():
+        for speaker in Speaker.objects.all():
+            speaker.save()
+        return True
+
+    @staticmethod
+    def rerun_speaker_id():
+        """
+        Re-run speaker id to start from 1 and increment by 1.
+        Format is based on the following criteria:
+        - Gender: M, F, KM, KF
+        - Language: th, en
+        - Speaker ID: 1, 2, 3, ...
+        Examples:
+        - M01, M02, M03, ...
+        - F01, F02, F03, ...
+        - KM01, KM02, KM03, ...
+        - KF01, KF02, KF03, ...
+        Returns:
+        """
+        for gender in GENDER_CHOICES:
+            speakers = Speaker.objects.filter(gender=gender[0])
+            for i, speaker in enumerate(speakers, start=1):
+                speaker_id = f"{speaker.gender}{i:02d}"
+                speaker.speaker_id = speaker_id
+                speaker.save()
