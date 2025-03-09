@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import tempfile
 from importlib.resources import files
@@ -7,6 +8,8 @@ import click
 import gradio as gr
 import soundfile as sf
 import torchaudio
+
+logger = logging.getLogger(__name__)
 
 # -------------------------------------
 # VoiceFixer
@@ -342,11 +345,11 @@ with gr.Blocks() as app:
 def main(port=55556, host="127.0.0.1", share=False, api=True, root_path="/", inbrowser=False):
     global app
 
-    print(f"""
+    logger.info(f"""
     Starting app... with
-    host: {host}:{port}
-    allow_api: {api}
-    root_path: {root_path}
+    > host: {host}:{port}
+    > allow_api: {api}
+    > root_path: {root_path}
     """)
     app.queue(api_open=api).launch(
         server_name=host,
