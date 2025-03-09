@@ -59,6 +59,8 @@ INSTALLED_APPS = [
     "ninja_extra",
     "ninja_jwt",
     "ninja_crud",
+    'easy_thumbnails',
+    'filer',
 
     # app
     'tts',
@@ -192,4 +194,33 @@ UNFOLD = {
     # "SITE_ICON": lambda request: static("icon.svg"),
     # "SITE_LOGO": lambda request: static("logo.svg"),
     "SITE_URL": "http://a100.ap.ngrok.io/tts/f5-tts/",
+}
+
+THUMBNAIL_PROCESSORS = (
+    'easy_thumbnails.processors.colorspace',
+    'easy_thumbnails.processors.autocrop',
+    # 'easy_thumbnails.processors.scale_and_crop',
+    'filer.thumbnail_processors.scale_and_crop_with_subject_location',
+    'easy_thumbnails.processors.filters',
+)
+
+FILER_STORAGES = {
+    'public': {
+        'main': {
+            'ENGINE': 'tts.storage.CustomPublicFileSystemStorage',
+            'UPLOAD_TO': 'tts.storage.randomized',
+        },
+        'thumbnails': {
+            'ENGINE': 'tts.storage.CustomPublicFileSystemStorage',
+        },
+    },
+    'private': {
+        'main': {
+            'ENGINE': 'filer.storage.PrivateFileSystemStorage',
+            'UPLOAD_TO': 'tts.storage.randomized',
+        },
+        'thumbnails': {
+            'ENGINE': 'filer.storage.PrivateFileSystemStorage',
+        },
+    },
 }

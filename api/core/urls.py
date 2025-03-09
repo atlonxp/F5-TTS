@@ -1,6 +1,8 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.shortcuts import redirect
-from django.urls import path
+from django.urls import path, include
 from ninja_extra import NinjaExtraAPI
 
 from .custom_scalar_viewer import CustomScalarViewer
@@ -29,6 +31,8 @@ def redirect_landing(request):
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("api/", api.urls),
-    path("", redirect_landing),
+    path('api/', api.urls),
+    path('filer/', include('filer.urls')),
+    path('', redirect_landing),
 ]
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
