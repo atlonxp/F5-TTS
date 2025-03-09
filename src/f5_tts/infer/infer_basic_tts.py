@@ -7,6 +7,7 @@ import click
 import gradio as gr
 import soundfile as sf
 import torchaudio
+
 # -------------------------------------
 # VoiceFixer
 # -------------------------------------
@@ -224,16 +225,16 @@ with gr.Blocks() as app_tts:
 with gr.Blocks() as app:
     gr.Markdown("""
         # F5 TTS for Thai by Watthanasak Jeamwatthanachai, PhD
-        
+
         This is a local web UI for F5-TTS with advanced batch processing support. This app supports the following TTS models:
-        
+
         * [F5-TTS](https://arxiv.org/abs/2410.06885) (A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching)
-        
+
         The checkpoints currently support English, Chinese, and Thai (experiments).
-        
+
         **NOTE: Reference text will be automatically transcribed with Whisper if not provided**
-        
-        * English and Chinese only. 
+
+        * English and Chinese only.
         * Thai requires a reference text. Whisper is not yet supported for Thai but will be added soon.
         * For best results, keep your reference clips short (<15s). Ensure the audio is fully uploaded before generating.
         """)
