@@ -193,7 +193,7 @@ UNFOLD = {
     # "SHOW_VIEW_ON_SITE": False,
     # "SITE_ICON": lambda request: static("icon.svg"),
     # "SITE_LOGO": lambda request: static("logo.svg"),
-    "SITE_URL": "http://a100.ap.ngrok.io/tts/f5-tts/",
+    "SITE_URL": "https://a100.ap.ngrok.io/tts/f5/",
 }
 
 THUMBNAIL_PROCESSORS = (
