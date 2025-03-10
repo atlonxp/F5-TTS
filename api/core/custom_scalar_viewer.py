@@ -174,10 +174,38 @@ def get_custom_scalar_api_reference(
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="shortcut icon" href="{scalar_favicon_url}">
     <style>
-    body {{
+      body {{
         margin: 0;
         padding: 0;
-    }}
+      }}
+      .footer {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 14px;
+        padding: 12px 20px;
+        background: var(--scalar-background-3, #f8f9fa);
+        color: var(--scalar-color-2, #2a2f45);
+        border-top: 1px solid var(--scalar-border-color, #ddd);
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        box-shadow: 0px -2px 4px rgba(0, 0, 0, 0.1);
+        font-family: "Inter", sans-serif;
+      }}
+      .footer div {{
+        display: flex;
+        gap: 12px;
+      }}
+      .footer a {{
+        color: var(--scalar-color-accent, #009485);
+        text-decoration: none;
+        margin-left: 15px;
+        font-weight: 400;
+      }}
+      .footer a:hover {{
+        text-decoration: underline;
+      }}
     </style>
     <style>
     {scalar_theme}
@@ -194,6 +222,13 @@ def get_custom_scalar_api_reference(
     data-configuration='{configuration}'>
     </script>
     <script src="{scalar_js_url}"></script>
+    <div class="footer">
+      <span>&copy; 2025 <a style="margin-left: 0;"href="mailto:watthanasak.jea@nectec.or.th">Watthanasak Jeamwatthanachai</a>. All rights reserved.</span>
+      <div style="margin-right: 50px;">
+        <a href="https://a100.ap.ngrok.io/f5/playground/" target="_blank">Playground</a>
+        <a href="https://a100.ap.ngrok.io/f5/admin" target="_blank">Dashboard</a>
+      </div>
+    </div>
     </body>
     </html>
     """
