@@ -7,7 +7,6 @@ from django.db import models
 from filer.fields.file import FilerFileField
 from filer.models.filemodels import File as FilerFile
 
-from tts.infer_gradio_api import basic_tts
 from tts.models.speaker.models import Speaker, ReferenceAudio
 
 
@@ -64,6 +63,8 @@ class UsageLog(models.Model):
                 reference_audio = self.custom_reference.audio.file.path
             else:
                 raise ValueError("UsageLog must have either a speaker or a custom reference audio")
+
+            from tts.infer_gradio_api import basic_tts
             audio, spectrogram, _, enhanced_audio = basic_tts(
                 ref_audio_input=reference_audio,
                 ref_text_input=reference_text,
