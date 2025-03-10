@@ -47,5 +47,5 @@ class TTSConfiguration(models.Model):
         if not self.pk and TTSConfiguration.objects.exists():
             raise ValidationError("There can be only one TTSConfiguration instance")
         super().save(*args, **kwargs)
-        from f5_tts.infer.infer_gradio_api import set_custom_model
+        from tts.infer_gradio_api import set_custom_model
         set_custom_model(self.checkpoint, self.vocab, self.config)

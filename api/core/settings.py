@@ -189,7 +189,7 @@ NINJA_JWT = {
 
 UNFOLD = {
     "SITE_TITLE": "F5-TTS",
-    "SITE_HEADER": "Admin Panel",
+    "SITE_HEADER": "F5-TTS - Admin Panel",
     # "SHOW_VIEW_ON_SITE": False,
     # "SITE_ICON": lambda request: static("icon.svg"),
     # "SITE_LOGO": lambda request: static("logo.svg"),

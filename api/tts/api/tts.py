@@ -1,69 +1,107 @@
-import tempfile
-from typing import Optional
+from typing import Dict
 
-from ninja import Router
-from ninja import UploadedFile, File
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from filer.models.filemodels import File as FilerFile
+from ninja import Router, UploadedFile, File, Form
 
-from ..models.tts.schema import GenerateTTSOutput, GenerateTTSInput
-
-# from f5_tts.infer.infer_basic_tts import infer
+from ..infer_gradio_api import basic_tts
+from ..models.speaker.models import Speaker, ReferenceAudio
+from ..models.tts.models import UsageLog, save_filer_file
+from ..models.tts.schema import GenerateTTSOutput, GenerateTTSInput, GenerateCustomTTSInput
 
 router = Router()
 
 
-@router.post("/generate", response=GenerateTTSOutput)
-def generate(request, data: GenerateTTSInput, reference_audio: Optional[UploadedFile] = File(None)):
+@router.post("/generate", response={200: GenerateTTSOutput, 400: Dict, 500: Dict})
+def generate(request, data: GenerateTTSInput):
     """
     Generates speech using F5-TTS.
-    - Expects a JSON body with prompt_text and optional reference_text.
-    - Optionally accepts an uploaded file for reference_audio.
+    - Expects a JSON body with prompt_text and speaker_id.
     """
-    prompt_text = data.prompt_text
-    reference_text = data.reference_text or ""
-
-    # Save the uploaded reference audio to a temporary file if provided.
-    ref_audio_path = None
-    if reference_audio:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-            tmp.write(reference_audio.read())
-            ref_audio_path = tmp.name
+    # Validate speaker_id against database
+    try:
+        speaker = Speaker.objects.get(speaker_id=data.speaker_id)
+    except Speaker.DoesNotExist:
+        return 400, {
+            "message": f"Invalid speaker_id '{data.speaker_id}'. Must be one of: {list(Speaker.objects.values_list('speaker_id', flat=True))}"}
 
     try:
-        # Call the F5-TTS inference function.
-        # Adjust parameters as per your actual function signature.
-        # audio_result, spectrogram_path, ref_text_out, audio_enhanced = infer(
-        #     ref_audio_path,
-        #     reference_text,
-        #     prompt_text,
-        #     "F5-TTS",  # Or use your current model configuration.
-        #     remove_silence=False,
-        #     cross_fade_duration=0.15,
-        #     nfe_step=32,
-        #     speed=1.0,
-        # )
-        # sample_rate, audio_data = audio_result
-        #
-        # # Save the generated audio to a temporary file.
-        # with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_audio:
-        #     sf.write(tmp_audio.name, audio_data, sample_rate)
-        #     generated_audio_path = tmp_audio.name
-        #
-        # # Log the usage.
-        # usage_log = UsageLog.objects.create(
-        #     prompt_text=prompt_text,
-        #     generated_text=ref_text_out,
-        #     reference_text=reference_text,
-        # )
+        audio, spectrogram, _, enhanced_audio = basic_tts(
+            ref_audio_input=speaker.reference.audio.file.path,
+            ref_text_input=speaker.reference.text,
+            gen_text_input=data.prompt_text,
+            remove_silence=False,
+            cross_fade_duration_slider=0.15,
+            nfe_slider=32,
+            speed_slider=1,
+            verbose=False
+        )
+
+        usage_log = UsageLog.objects.create(
+            speaker=speaker,
+            custom_reference=None,
+            generated_text=data.prompt_text,
+            generated_audio=save_filer_file(audio, folder="tts_generated"),
+            enhanced_audio=save_filer_file(enhanced_audio, folder="tts_generated"),
+            spectrogram=save_filer_file(spectrogram, folder="tts_spectrograms"),
+        )
 
         return GenerateTTSOutput(
             message="TTS generated successfully",
-            generated_audio_path="",
-            usage_log_id=1
+            audio=audio,
+            enhanced_audio=enhanced_audio,
+            spectrogram=spectrogram,
+            usage_log_id=usage_log.id
         )
-        # return GenerateTTSOutput(
-        #     message="TTS generated successfully",
-        #     generated_audio_path=generated_audio_path,
-        #     usage_log_id=usage_log.id,
-        # )
+    except Exception as e:
+        return 500, {"message": str(e)}
+
+
+@router.post("/generate_vc", response=GenerateTTSOutput)
+def generate_with_reference(request, data: Form[GenerateCustomTTSInput], reference_audio: UploadedFile = File(...)):
+    """
+    Generates speech with Custom Reference using F5-TTS.
+    - Expects a JSON body with prompt_text, reference_text, and reference_audio.
+    """
+    # Save the uploaded reference_audio file and create ReferenceAudio instance
+    relative_path = default_storage.save(f"speakers/{reference_audio.name}", ContentFile(reference_audio.read()))
+    absolute_path = default_storage.path(relative_path)
+    with open(absolute_path, "rb") as f:
+        django_file = ContentFile(f.read(), name=relative_path)
+        filer_file = FilerFile.objects.create(
+            original_filename=reference_audio.name,
+            file=django_file
+        )
+    reference = ReferenceAudio.objects.create(text=data.reference_text, audio=filer_file)
+
+    try:
+        audio, spectrogram, _, enhanced_audio = basic_tts(
+            ref_audio_input=reference.audio.file.path,
+            ref_text_input=reference.text,
+            gen_text_input=data.prompt_text,
+            remove_silence=False,
+            cross_fade_duration_slider=0.15,
+            nfe_slider=32,
+            speed_slider=1,
+            verbose=False
+        )
+
+        usage_log = UsageLog.objects.create(
+            speaker=None,
+            custom_reference=reference,
+            generated_text=data.prompt_text,
+            generated_audio=save_filer_file(audio, folder="tts_generated"),
+            enhanced_audio=save_filer_file(enhanced_audio, folder="tts_generated"),
+            spectrogram=save_filer_file(spectrogram, folder="tts_spectrograms"),
+        )
+
+        return GenerateTTSOutput(
+            message="TTS generated successfully",
+            audio=audio,
+            enhanced_audio=enhanced_audio,
+            spectrogram=spectrogram,
+            usage_log_id=usage_log.id
+        )
     except Exception as e:
         return 500, {"message": str(e)}

@@ -1,14 +1,15 @@
-from typing import Optional
+from ninja import ModelSchema
 
-from pydantic import BaseModel
-
-
-class TTSConfigurationIn(BaseModel):
-    current_model: str
-    configuration: Optional[dict] = {}
+from tts.models.config.models import TTSConfiguration
 
 
-class TTSConfigurationOut(BaseModel):
-    id: int
-    current_model: str
-    configuration: Optional[dict] = {}
+class TTSConfigurationIn(ModelSchema):
+    class Meta:
+        model = TTSConfiguration
+        fields = ["model", "checkpoint", "vocab", "config"]
+
+
+class TTSConfigurationOut(ModelSchema):
+    class Meta:
+        model = TTSConfiguration
+        fields = ["model", "checkpoint", "vocab", "config"]

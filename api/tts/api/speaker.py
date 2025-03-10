@@ -1,6 +1,10 @@
 from typing import List
 
-from ninja import File, UploadedFile
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.db import transaction
+from filer.models.filemodels import File as FilerFile
+from ninja import File, UploadedFile, Form
 from ninja import Router
 
 from ..models.speaker.models import Speaker
@@ -19,16 +23,28 @@ def list_speakers(request):
 
 
 @router.post("/", response=SpeakerOut)
-def create_speaker(request, data: SpeakerIn, reference_audio: UploadedFile = File(...)):
+@transaction.atomic
+def create_speaker(request, data: Form[SpeakerIn], reference_audio: UploadedFile = File(...)):
     """
     Create a new speaker for voice cloning.
     - Expects JSON data with a speaker name and optional reference text.
     - Requires an uploaded reference_audio file.
     """
-    # You might want to handle file storage with Django's default storage.
+
+    relative_path = default_storage.save(f"speakers/{reference_audio.name}", ContentFile(reference_audio.read()))
+    absolute_path = default_storage.path(relative_path)
+    with open(absolute_path, "rb") as f:
+        django_file = ContentFile(f.read(), name=relative_path)
+        filer_file = FilerFile.objects.create(
+            original_filename=reference_audio.name,
+            file=django_file
+        )
+
     speaker = Speaker.objects.create(
         name=data.name,
+        gender=data.gender,
         reference_text=data.reference_text or "",
-        reference_audio=reference_audio  # django-ninja handles UploadedFile for you.
+        reference_audio=filer_file,
+        language=data.language,
     )
     return speaker

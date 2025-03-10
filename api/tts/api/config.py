@@ -1,3 +1,5 @@
+from typing import Dict
+
 from ninja import Router
 
 from ..models.config.models import TTSConfiguration
@@ -6,14 +8,14 @@ from ..models.config.schema import TTSConfigurationOut, TTSConfigurationIn
 router = Router()
 
 
-@router.get("/config", response=TTSConfigurationOut)
+@router.get("/config", response={200: TTSConfigurationOut, 500: Dict})
 def get_configuration(request):
     """
     Get the current TTS configuration.
     """
     config = TTSConfiguration.objects.first()
     if not config:
-        config = TTSConfiguration.objects.create(current_model="F5-TTS", configuration={})
+        return 500, {"message": "No configuration found"}
     return config
 
 
@@ -25,10 +27,12 @@ def update_configuration(request, data: TTSConfigurationIn):
     """
     config = TTSConfiguration.objects.first()
     if not config:
-        config = TTSConfiguration.objects.create(current_model=data.current_model, configuration=data.configuration)
+        config = TTSConfiguration.objects.create(**data.dict())
     else:
-        config.current_model = data.current_model
-        config.configuration = data.configuration
+        config.model = data.model
+        config.checkpoint = data.checkpoint
+        config.vocab = data.vocab
+        config.config = data.config
         config.save()
     # Optionally, trigger actions such as reloading the TTS model here.
     return config

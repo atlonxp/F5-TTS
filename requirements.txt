@@ -1,3 +1,4 @@
 pythainlp[attacut]
 wtpsplit
 deep-phonemizer
+voicefixer

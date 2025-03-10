@@ -14,7 +14,8 @@ class TtsConfig(AppConfig):
 
     def ready(self):
         logger.info('Django TTS app is ready, waiting for Gradio server to start...')
-        # if not wait_for_port(55556, "127.0.0.1", timeout=60, interval=1):
-        #     logger.warning("> Timeout reached. Gradio server did not start in time.")
-        # else:
-        #     logger.info("> Gradio server is up!")
+        if not wait_for_port(55556, "127.0.0.1", timeout=60, interval=1):
+            logger.warning("> Timeout reached. Gradio server did not start in time.")
+        else:
+            logger.info("> Gradio server is up!")
+            logger.info("> Initializing TTS models...")

@@ -1,17 +1,25 @@
-from typing import Optional
+from ninja import ModelSchema
 
-from pydantic import BaseModel
-
-
-class SpeakerIn(BaseModel):
-    name: str
-    reference_text: Optional[str] = None
+from tts.models.speaker.models import Speaker, ReferenceAudio
 
 
-class SpeakerOut(BaseModel):
-    id: int
-    name: str
-    gender: str
-    reference_text: Optional[str] = None
-    reference_audio: Optional[str] = None
-    duration: Optional[float] = None
+class ReferenceOut(ModelSchema):
+    class Meta:
+        model = ReferenceAudio
+        fields = ["uuid", "text", "audio", "duration"]
+
+
+class SpeakerIn(ModelSchema):
+    reference_text: str
+
+    class Meta:
+        model = Speaker
+        fields = ["name", "gender", "language"]
+
+
+class SpeakerOut(ModelSchema):
+    reference: ReferenceOut
+
+    class Meta:
+        model = Speaker
+        fields = ["id", "name", "gender", "speaker_id"]

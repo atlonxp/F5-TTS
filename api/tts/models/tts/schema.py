@@ -1,14 +1,19 @@
-from typing import Optional
-
-from pydantic import BaseModel
+from ninja import Schema
 
 
-class GenerateTTSInput(BaseModel):
+class GenerateTTSInput(Schema):
     prompt_text: str
-    reference_text: Optional[str] = ""
+    speaker_id: str
 
 
-class GenerateTTSOutput(BaseModel):
+class GenerateCustomTTSInput(Schema):
+    prompt_text: str
+    reference_text: str
+
+
+class GenerateTTSOutput(Schema):
     message: str
-    generated_audio_path: str
+    audio: str
+    enhanced_audio: str
+    spectrogram: str
     usage_log_id: int
