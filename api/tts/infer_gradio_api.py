@@ -1,6 +1,6 @@
 from gradio_client import Client, handle_file
 
-client = Client("http://127.0.0.1:55556")
+client = Client("http://0.0.0.0:55556")
 
 
 def switch_tts_model(new_choice: str = "Custom", verbose=False):

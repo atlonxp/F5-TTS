@@ -342,7 +342,7 @@ with gr.Blocks() as app:
               help='The root path (or "mount point") of the application, if it\'s not served from the root ("/") of the domain. Often used when the application is behind a reverse proxy that forwards requests to the application, e.g. set "/myapp" or full URL for application served at "https://example.com/myapp".', )
 @click.option("--inbrowser", "-i", is_flag=True, default=False,
               help="Automatically launch the interface in the default web browser", )
-def main(port=55556, host="127.0.0.1", share=False, api=True, root_path="/", inbrowser=False):
+def main(port=55556, host="0.0.0.0", share=False, api=True, root_path="/", inbrowser=False):
     global app
 
     logger.info(f"""
@@ -365,4 +365,4 @@ def main(port=55556, host="127.0.0.1", share=False, api=True, root_path="/", inb
 
 
 if __name__ == "__main__":
-    main(args=["--port", "55556", "--host", "127.0.0.1"], standalone_mode=False)
+    main(args=["--port", "55556", "--host", "0.0.0.0"], standalone_mode=False)

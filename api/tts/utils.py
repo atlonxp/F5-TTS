@@ -4,7 +4,7 @@ import time
 import uuid
 
 
-def is_port_in_use(port, host="127.0.0.1"):
+def is_port_in_use(port, host="0.0.0.0"):
     """Check if a port is in use by trying to connect to it."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
@@ -14,7 +14,7 @@ def is_port_in_use(port, host="127.0.0.1"):
             return False
 
 
-def wait_for_port(port, host="127.0.0.1", timeout=60, interval=1):
+def wait_for_port(port, host="0.0.0.0", timeout=60, interval=1):
     """
     Wait until the given port is in use (i.e. a server is running on it)
     or until the timeout (in seconds) is reached.
