@@ -338,11 +338,11 @@ with gr.Blocks() as app:
 @click.option("--host", "-H", default="0.0.0.0", help="Host to run the app on")
 @click.option("--share", "-s", default=False, is_flag=True, help="Share the app via Gradio share link", )
 @click.option("--api", "-a", default=True, is_flag=True, help="Allow API access")
-@click.option("--root_path", "-r", default="/", type=str,
+@click.option("--root_path", "-r", default="/f5", type=str,
               help='The root path (or "mount point") of the application, if it\'s not served from the root ("/") of the domain. Often used when the application is behind a reverse proxy that forwards requests to the application, e.g. set "/myapp" or full URL for application served at "https://example.com/myapp".', )
 @click.option("--inbrowser", "-i", is_flag=True, default=False,
               help="Automatically launch the interface in the default web browser", )
-def main(port=55556, host="0.0.0.0", share=False, api=True, root_path="/", inbrowser=False):
+def main(port=55556, host="0.0.0.0", share=False, api=True, root_path="/f5/playground", inbrowser=False):
     global app
 
     logger.info(f"""
@@ -359,10 +359,10 @@ def main(port=55556, host="0.0.0.0", share=False, api=True, root_path="/", inbro
         root_path=root_path,
         inbrowser=inbrowser,
         allowed_paths=[
-            "/Users/atlonxp/workspaces/PyCharmProjects/F5-TTS/demo",
+            "./demo",
         ]
     )
 
 
 if __name__ == "__main__":
-    main(args=["--port", "55556", "--host", "0.0.0.0"], standalone_mode=False)
+    main(args=["--port", "55556", "--host", "0.0.0.0", "--root_path", "/f5/playground"], standalone_mode=False)

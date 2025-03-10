@@ -61,7 +61,8 @@ CKPTS_DIR = os.path.join(project_root, "ckpts")
 DATA_DIR = os.path.join(project_root, "data")
 DEMO_DIR = os.path.join(project_root, "demo")
 
-vocoder = load_vocoder()
+vocoder_name = "vocos" #vocos, bigvgan
+vocoder = load_vocoder(vocoder_name=vocoder_name)
 
 
 def load_f5tts(ckpt_path=str(cached_path("hf://SWivid/F5-TTS/F5TTS_Base/model_1200000.safetensors"))):
@@ -217,6 +218,7 @@ def infer(
         gen_text,
         ema_model,
         vocoder,
+        mel_spec_type=vocoder_name,
         cross_fade_duration=cross_fade_duration,
         nfe_step=nfe_step,
         speed=speed,

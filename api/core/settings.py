@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-y+q1rp_cw)va0u296k#%)wp2pcstlx0$m7l(m@%8y=3a5&w58*
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -68,9 +68,7 @@ INSTALLED_APPS = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-CSRF_TRUSTED_ORIGINS = [
-
-]
+CSRF_TRUSTED_ORIGINS = ["https://a100.ap.ngrok.io"]
 
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -162,15 +160,25 @@ TIME_ZONE = 'Asia/Bangkok'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
+# Host Django with Subfolder in Nginx
+USE_X_FORWARDED_HOST = True
+FORCE_SCRIPT_NAME = '/f5/'
+SESSION_COOKIE_PATH = '/f5/'
 
-STATIC_URL = "static/"
+# LOGIN_URL = "login/"
+LOGIN_REDIRECT_URL = '/f5/'
+LOGOUT_REDIRECT_URL = '/f5/'
+
+STATIC_URL = "/f5/static/"
+MEDIA_URL = "/f5/media/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles/")
-MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media/")
+STATICFILES_DIRS = [  # Include additional static files
+    os.path.join(BASE_DIR, "static"),
+]
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
@@ -193,7 +201,7 @@ UNFOLD = {
     # "SHOW_VIEW_ON_SITE": False,
     # "SITE_ICON": lambda request: static("icon.svg"),
     # "SITE_LOGO": lambda request: static("logo.svg"),
-    "SITE_URL": "https://a100.ap.ngrok.io/tts/f5/",
+    "SITE_URL": "https://a100.ap.ngrok.io/f5/",
 }
 
 THUMBNAIL_PROCESSORS = (

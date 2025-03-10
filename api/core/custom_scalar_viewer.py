@@ -204,7 +204,7 @@ class CustomScalarViewer(ScalarViewer):
     def __init__(
             self,
             title: str = "API Reference | F5-TTS by Watthanasak J.",
-            openapi_url: str = "/api/openapi.json",
+            openapi_url: str = "/f5/api/openapi.json",
             scalar_js_url: str = "https://cdn.jsdelivr.net/npm/@scalar/api-reference",  # noqa: E501
             scalar_proxy_url: str = "",
             scalar_favicon_url: str = "",

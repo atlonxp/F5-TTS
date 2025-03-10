@@ -26,7 +26,7 @@ add_routers(api)
 
 
 def redirect_landing(request):
-    return redirect("/api/docs/")
+    return redirect("/f5/api/docs/")
 
 
 urlpatterns = [
@@ -35,4 +35,6 @@ urlpatterns = [
     path('filer/', include('filer.urls')),
     path('', redirect_landing),
 ]
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.DEBUG:  # Serve static files only in Debug mode
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
