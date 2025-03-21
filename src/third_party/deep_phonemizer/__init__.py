@@ -1,0 +1,1 @@
+from third_party.deep_phonemizer.result import Prediction, PhonemizerResult

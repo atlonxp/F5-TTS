@@ -1,0 +1,50 @@
+
+paths:
+  checkpoint_dir: checkpoints_autoreg   # Directory to store model checkpoints and tensorboard, will be created if not existing.
+  data_dir: datasets            # Directory to store processed data, will be created if not existing.
+
+preprocessing:
+  languages: ['th']    # All languages in the dataset.
+
+  # Text (grapheme) and phoneme symbols, either provide a string or list of strings.
+  # Symbols in the dataset will be filtered according to these lists!
+  text_symbols: ["\u0e01", "\u0e02", "\u0e04", "\u0e06", "\u0e07", "\u0e08", "\u0e09", "\u0e0a", "\u0e0b", "\u0e0c", "\u0e0d", "\u0e0e", "\u0e0f", "\u0e10", "\u0e11", "\u0e12", "\u0e13", "\u0e14", "\u0e15", "\u0e16", "\u0e17", "\u0e18", "\u0e19", "\u0e1a", "\u0e1b", "\u0e1c", "\u0e1d", "\u0e1e", "\u0e1f", "\u0e20", "\u0e21", "\u0e22", "\u0e23", "\u0e24", "\u0e25", "\u0e26", "\u0e27", "\u0e28", "\u0e29", "\u0e2a", "\u0e2b", "\u0e2c", "\u0e2d", "\u0e2e", "\u0e30", "\u0e31", "\u0e32", "\u0e33", "\u0e34", "\u0e35", "\u0e36", "\u0e37", "\u0e38", "\u0e39", "\u0e3a", "\u0e40", "\u0e41", "\u0e42", "\u0e43", "\u0e44", "\u0e45", "\u0e47", "\u0e48", "\u0e49", "\u0e4a", "\u0e4b", "\u0e4c", "\u0e4d","\u0e2f","\u0e50","\u0e51","\u0e52","\u0e53","\u0e54","\u0e55","\u0e56","\u0e57","\u0e58","\u0e59", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",".",",","0","1","2","3","4","5","6","7","8","9","{","}",'"',"'","&"]
+  
+  phoneme_symbols: ["b", "bl", "br", "c", "ch", "d", "dr", "f", "fl", "fr", "h", "j", "k", "kh", "khl", "khr", "khw", "kl", "kr", "kw", "l", "m", "n", "ng", "p", "ph", "phl", "phr", "pl", "pr", "r", "s", "sh", "t", "th", "tha", "thr", "tl", "tr", "w", "y", "z", "@0", "@1", "@2", "@3", "@4", "@5", "@6", "@7", "@@0", "@@1", "@@2", "@@3", "@@4", "@@5", "@@6", "@@7", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "aa0", "aa1", "aa2", "aa3", "aa4", "aa5", "aa6", "aa7", "e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7", "ee0", "ee1", "ee2", "ee3", "ee4", "ee5", "ee6", "ee7", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7", "ia0", "ia1", "ia2", "ia3", "ia4", "ii0", "ii1", "ii2", "ii3", "ii4", "ii5", "ii6", "ii7", "iia0", "iia1", "iia2", "iia3", "iia4", "iia5", "iia6", "iia7", "o0", "o1", "o2", "o3", "o4", "o5", "o6", "o7", "oo0", "oo1", "oo2", "oo3", "oo4", "oo5", "oo6", "oo7", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "qq0", "qq1", "qq2", "qq3", "qq4", "qq5", "qq6", "qq7", "u0", "u1", "u2", "u3", "u4", "u5", "u6", "u7", "ua0", "ua2", "ua3", "uu0", "uu1", "uu2", "uu3", "uu4", "uu5", "uu6", "uu7", "uua0", "uua1", "uua2", "uua3", "uua4", "uua5", "uua6", "uua7", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "vv0", "vv1", "vv2", "vv3", "vv4", "vv5", "vv6", "vv7", "vva0", "vva1", "vva2", "vva3", "vva4", "vva5", "vva6", "vva7", "x0", "x1", "x2", "x3", "x4", "x5", "x7", "xx0", "xx1", "xx2", "xx3", "xx4", "xx5", "xx6", "xx7", "c^", "ch^", "d^", "f^", "j^", "jf^", "js^", "k^", "ks^", "l^", "ls^", "m^", "n^", "ng^", "ns^", "p^", "s^", "t^", "ts^", "w^"]
+
+  char_repeats: 1                # Number of grapheme character repeats to allow for mapping to longer phoneme sequences.
+                                 # Set to 1 for autoreg_transformer.
+  lowercase: true                # Whether to lowercase the grapheme input.
+  n_val: 5000                    # Default number of validation data points if no explicit validation data is provided.
+
+
+model:
+  type: 'autoreg_transformer'        # Whether to use a forward transformer or autoregressive transformer model.
+                                     # Choices: ['transformer', 'autoreg_transformer']
+  d_model: 512
+  d_fft: 1024
+  layers: 4
+  dropout: 0.1
+  heads: 4
+
+training:
+
+  # Hyperparams for learning rate and scheduler.
+  # The scheduler is reducing the lr on plateau of phoneme error rate (tested every n_generate_steps).
+
+  learning_rate: 0.0001              # Learning rate of Adam.
+  warmup_steps: 10000                # Linear increase of the lr from zero to the given lr within the given number of steps.
+  scheduler_plateau_factor: 0.5      # Factor to multiply learning rate on plateau.
+  scheduler_plateau_patience: 10     # Number of text generations with no improvement to tolerate.
+  batch_size: 32                     # Training batch size.
+  batch_size_val: 32                 # Validation batch size.
+  epochs: 500                        # Number of epochs to train.
+  generate_steps: 10000              # Interval of training steps to generate sample outputs. Also, at this step the phoneme and word
+                                     # error rates are calculated for the scheduler.
+  validate_steps: 10000              # Interval of training steps to validate the model
+                                     # (for the autoregressive model this is teacher-forced).
+  checkpoint_steps: 100000           # Interval of training steps to save the model.
+  n_generate_samples: 10             # Number of result samples to show on tensorboard.
+  store_phoneme_dict_in_model: true  # Whether to store the raw phoneme dict in the model.
+                                     # It will be loaded by the phonemizer object.
+
