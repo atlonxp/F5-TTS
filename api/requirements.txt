@@ -1,7 +1,3 @@
-pythainlp[attacut]
-wtpsplit
-deep-phonemizer
-voicefixer
 Django
 django-extensions
 django-ninja
