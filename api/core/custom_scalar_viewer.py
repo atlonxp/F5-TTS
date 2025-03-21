@@ -4,6 +4,11 @@ from ninja.types import DictStrAny
 from scalar_django_ninja import ScalarViewer
 from typing_extensions import Annotated, Doc
 
+ON_NGINX = settings.ON_NGINX
+ROOT_PATH = "/f5" if ON_NGINX else ""
+DOMAIN = "https://a100.ap.ngrok.io" if ON_NGINX else "http://localhost:8000"
+PLAYGROUND = f"{DOMAIN}{ROOT_PATH}/playground/" if ON_NGINX else "http://localhost:55556"
+
 scalar_theme = """
 /* basic theme */
 .light-mode {
@@ -226,9 +231,9 @@ def get_custom_scalar_api_reference(
     <div class="footer">
       <span>&copy; 2025 <a style="margin-left: 0;"href="mailto:watthanasak.jea@nectec.or.th">Watthanasak Jeamwatthanachai</a>. All rights reserved.</span>
       <div style="margin-right: 50px;">
-        <a href="https://a100.ap.ngrok.io/f5/playground/" target="_blank">Playground</a>
-        <a href="https://a100.ap.ngrok.io/f5/admin" target="_blank">Dashboard</a>
-        <a href="https://a100.ap.ngrok.io/jupyter/lab/" target="_blank">Jupyter</a>
+        <a href="{PLAYGROUND}" target="_blank">Playground</a>
+        <a href="{DOMAIN}{ROOT_PATH}/admin" target="_blank">Dashboard</a>
+        <a href="{PLAYGROUND}/jupyter/lab/" target="_blank">Jupyter</a>
       </div>
     </div>
     </body>
@@ -241,7 +246,7 @@ class CustomScalarViewer(ScalarViewer):
     def __init__(
             self,
             title: str = "API Reference | F5-TTS by Watthanasak J.",
-            openapi_url: str = "/f5/api/openapi.json" if settings.ON_NGINX else "/api/openapi.json",
+            openapi_url: str = f"{ROOT_PATH}/api/openapi.json",
             scalar_js_url: str = "https://cdn.jsdelivr.net/npm/@scalar/api-reference",  # noqa: E501
             scalar_proxy_url: str = "",
             scalar_favicon_url: str = "",
