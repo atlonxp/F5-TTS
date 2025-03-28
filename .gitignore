@@ -7,11 +7,6 @@ ckpts/
 wandb/
 results/
 
-media/tts_generated/
-media/tts_spectrograms/
-api/media/tts_generated/
-api/media/tts_spectrograms/
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -72,7 +67,7 @@ cover/
 # Django stuff:
 *.log
 local_settings.py
-#db.sqlite3
+db.sqlite3
 db.sqlite3-journal
 
 # Flask stuff:
