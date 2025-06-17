@@ -1,3 +1,4 @@
+import os
 import ujson as json
 from pathlib import Path
 from importlib.resources import files
@@ -16,7 +17,7 @@ LANGS        = ["TH", "EN", "ZH"]
 
 BASE         = Path("/project/lt200249-speech/hall/datasets/multi-tts")
 SAVE_BASE    = Path(files("f5_tts").joinpath("../../")) / "data"
-DATASET_NAME = f"Custom_{'_'.join(LANGS)}_{TOKENIZER}"
+DATASET_NAME = f"Custom_{'_'.join(LANGS)}_{TOKENIZER}".lower()
 SAVE_DIR     = SAVE_BASE / DATASET_NAME
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -98,7 +99,12 @@ def process_json_file(task):
             text = convert_char_to_pinyin([text], polyphone=POLYPHONE)[0]
 
         # —— MAIN SAMPLE ——
-        audio_file = json_path.with_suffix(".wav")
+        if lang == "TH":
+            audio_file = json_path.with_suffix(".wav")
+        else:
+            audio_file = json_path.with_suffix(".mp3")
+        if not audio_file.exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_file}")
         samples.append({
             "audio_path": str(audio_file),
             "text":       text,
@@ -122,7 +128,7 @@ def process_json_file(task):
             durations.append(dur)
             vocab.update(phone)
 
-    except Exception:
+    except Exception as e:
         errors.append(str(json_path))
 
     return samples, durations, vocab, bad_zh, bad_en, bad_th, errors
@@ -183,8 +189,8 @@ def main():
     print(f"total hours: {hours:.2f}")
     print(f"bad ZH: {tot_bad_zh}, bad EN: {tot_bad_en}, bad TH: {tot_bad_th}")
     print(f"Error JSON: {len(tot_errors)}")
-    for err in tot_errors:
-        print(f"  : {err}")
+    # for err in tot_errors:
+    #     print(f"  : {err}")
 
 
 if __name__ == "__main__":

@@ -12,9 +12,9 @@ from f5_tts.model.utils import convert_char_to_pinyin, repetition_found
 MAX_WORKERS  = 128
 TOKENIZER    = "pinyin"
 POLYPHONE    = True
-LANG         = "ZH"            # override on the command line
+LANG         = "EN"
 BASE         = Path("/project/lt200249-speech/hall/datasets/multi-tts")
-SAVE_BASE    = Path("/project/lt200249-speech/hall/data")
+SAVE_BASE    = Path("/project/lt200249-speech/hall/workspaces/f5-tts/data")
 SAVE_DIR     = SAVE_BASE / f"Custom_{LANG}_{TOKENIZER}"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -48,6 +48,7 @@ OUT_EN = {
 EN_FILTERS = {"ا", "い", "て"}
 
 TRANSLATOR = str.maketrans({",": "，", "!": "！", "?": "？"})
+
 
 def process_json_file(task):
     """
@@ -95,7 +96,12 @@ def process_json_file(task):
             text = convert_char_to_pinyin([text], polyphone=POLYPHONE)[0]
 
         # —— MAIN SAMPLE ——
-        audio_file = json_path.with_suffix(".wav")
+        if lang == "TH":
+            audio_file = json_path.with_suffix(".wav")
+        else:
+            audio_file = json_path.with_suffix(".mp3")
+        if not audio_file.exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_file}")
         samples.append({
             "audio_path": str(audio_file),
             "text":       text,
@@ -124,12 +130,13 @@ def process_json_file(task):
 
     return samples, durations, vocab, bad_zh, bad_en, bad_th, errors
 
+
 def main():
     # 1) build just this language’s tasks
     folder = {
-      "ZH": BASE/"zh",
-      "EN": BASE/"en"/"emilia"/"wavs",
-      "TH": BASE/"th"/"gigaspeech2"/"wavs",
+      "ZH": BASE / "zh",
+      "EN": BASE / "en" / "emilia" / "wavs",
+      "TH": BASE / "th" / "gigaspeech2" / "wavs",
     }[LANG]
     tasks = [(LANG, p) for p in folder.glob("*.json")]
 
@@ -138,17 +145,22 @@ def main():
 
     # 3) stream through p_imap results
     total_dur = 0.0
+    all_durations = []  # collect each sample’s duration
     vocab = set()
-    bad_counts = {"ZH":0,"EN":0,"TH":0}
+    bad_counts = {"ZH": 0, "EN": 0, "TH": 0}
     errors = []
+
     # p_imap yields (samples, durs, vocab_set, bad_zh, bad_en, bad_th, errs)
     for samples, durs, vset, bzh, ben, bth, errs in p_imap(
-          process_json_file, tasks,
-          num_cpus=MAX_WORKERS, desc=f"{LANG}→samples"
+        process_json_file,
+        tasks,
+        num_cpus=MAX_WORKERS,
+        desc=f"{LANG}→samples"
     ):
         for s in samples:
             writer.write(s)
         total_dur += sum(durs)
+        all_durations.extend(durs)  # record individual durations
         vocab |= vset
         bad_counts["ZH"] += bzh
         bad_counts["EN"] += ben
@@ -157,19 +169,24 @@ def main():
 
     writer.close()
 
-    # 4) write ancillary per-language files
-    #    (if you really need the full list of durations, you can stream them similarly;
-    #     otherwise just record total hours and count)
+    # 4) write out every individual duration
+    (SAVE_DIR / "duration.json").write_text(
+        json.dumps({"duration": all_durations}, ensure_ascii=False),
+        encoding="utf-8"
+    )
+
+    # 5) write ancillary per-language files
     summary = {
       "language": LANG,
-      "hours": total_dur/3600,
+      "hours": total_dur / 3600,
       "vocab_size": len(vocab),
       "bad_counts": bad_counts,
       "errors": len(errors)
     }
-    json.dump(summary, open(SAVE_DIR/"summary.json","w"), ensure_ascii=False, indent=2)
-    with open(SAVE_DIR/"vocab.txt","w",encoding="utf-8") as f:
+    json.dump(summary, open(SAVE_DIR/"summary.json", "w"), ensure_ascii=False, indent=2)
+    with open(SAVE_DIR/"vocab.txt", "w", encoding="utf-8") as f:
         f.write("\n".join(sorted(vocab)))
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     main()
